@@ -1,0 +1,6 @@
+{
+  "name": "ArbSetu Institutional Terminal & Core",
+  "description": "Institutional cryptocurrency triangular arbitrage execution terminal, zero-custody API gateway, 5-tier referral settlement ledger, and dual-custody maker-checker operations hub.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
