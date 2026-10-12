@@ -1,6 +1,6 @@
 {
-  "name": "ArbSetu Institutional Terminal & Core",
-  "description": "Institutional cryptocurrency triangular arbitrage execution terminal, zero-custody API gateway, 5-tier referral settlement ledger, and dual-custody maker-checker operations hub.",
+  "name": "BitQuest Bros — Retro Platformer Arcade",
+  "description": "A classic Super Mario-style canvas platformer with email/password accounts, a personal player dashboard, a global top-10 leaderboard, mobile touch controls and an admin panel with user management and live game configuration.",
   "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "majorCapabilities": []
 }
