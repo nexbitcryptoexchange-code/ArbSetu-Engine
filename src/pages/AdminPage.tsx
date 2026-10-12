@@ -176,6 +176,7 @@ export default function AdminPage() {
             {label: 'COINS COLLECTED', value: metrics.coinsCollected, accent: 'text-arcade-gold'},
             {label: 'AD VIEWS', value: metrics.adViews, accent: 'text-arcade-cyan'},
             {label: 'AD COMPLETIONS', value: metrics.adCompletions, accent: 'text-arcade-green'},
+            {label: 'EST. AD REVENUE', value: `$${metrics.estRevenueUsd.toFixed(2)}`, accent: 'text-arcade-gold'},
             {label: 'BLOCKED ACCOUNTS', value: metrics.blockedUsers, accent: 'text-red-400'},
             {label: 'CONFIG: LIVES', value: config.initialLives, accent: 'text-white'},
           ].map((m) => (
@@ -317,6 +318,28 @@ export default function AdminPage() {
           </div>
         </div>
 
+        {/* Level completion rates */}
+        <section className="pixel-panel rounded-lg bg-arcade-panel p-4 sm:p-5">
+          <h2 className="font-retro mb-4 text-[11px] text-arcade-green">📈 LEVEL COMPLETION RATES</h2>
+          <div className="grid gap-3 sm:grid-cols-3">
+            {metrics.levelCompletionRates.map((l) => (
+              <div key={l.level} className="rounded bg-arcade-bg/60 p-3">
+                <div className="mb-2 flex items-center justify-between">
+                  <p className="font-retro text-[9px] text-slate-300">LEVEL {l.level}</p>
+                  <p className="font-retro text-[10px] text-arcade-gold">{l.rate}%</p>
+                </div>
+                <div className="h-2.5 overflow-hidden rounded bg-arcade-border">
+                  <div
+                    className={`h-full rounded ${l.rate >= 66 ? 'bg-arcade-green' : l.rate >= 33 ? 'bg-arcade-gold' : 'bg-arcade-red'}`}
+                    style={{width: `${Math.min(100, l.rate)}%`}}
+                  />
+                </div>
+                <p className="mt-1.5 text-xs text-slate-500">{l.reached} of {metrics.totalRuns} runs reached</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
         {/* Recent runs */}
         <section className="pixel-panel rounded-lg bg-arcade-panel p-4 sm:p-5">
           <h2 className="font-retro mb-4 text-[11px] text-white">📊 RECENT GAMES PLAYED</h2>
@@ -400,6 +423,7 @@ export default function AdminPage() {
                     accent: 'text-arcade-gold',
                   },
                   {label: 'AD EVENTS (24H)', value: metrics.adsLast24h, accent: 'text-white'},
+                  {label: 'EST. REVENUE', value: `$${metrics.estRevenueUsd.toFixed(2)}`, accent: 'text-arcade-gold'},
                 ].map((m) => (
                   <div key={m.label} className="flex items-center justify-between rounded bg-arcade-bg/60 px-3 py-2.5">
                     <p className="font-retro text-[8px] text-slate-400">{m.label}</p>

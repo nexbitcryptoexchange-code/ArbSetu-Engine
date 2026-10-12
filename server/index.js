@@ -280,6 +280,9 @@ app.get('/api/me/runs', requireAuth, (req, res) => {
 // ---------------------------------------------------------------------------
 // Admin
 // ---------------------------------------------------------------------------
+// Rough revenue model: an estimated payout per completed rewarded view.
+const EST_REVENUE_PER_COMPLETION_USD = 0.05;
+
 app.get('/api/admin/metrics', requireAdmin, (req, res) => {
   const players = db.users.filter((u) => u.role === 'user');
   const leaderboard = db.users
@@ -290,6 +293,17 @@ app.get('/api/admin/metrics', requireAdmin, (req, res) => {
   const adViews = db.adEvents.filter((e) => e.event === 'shown').length;
   const adCompletions = db.adEvents.filter((e) => e.event === 'completed').length;
   const adsLast24h = db.adEvents.filter((e) => Date.now() - new Date(e.at).getTime() < 24 * 3600 * 1000).length;
+  // Level completion rates: share of runs that reached each level.
+  const reachedCounts = [0, 0, 0];
+  for (const r of db.runs) {
+    const lvl = Math.min(3, Math.max(1, r.level || 1));
+    for (let n = 1; n <= lvl; n++) reachedCounts[n - 1]++;
+  }
+  const levelCompletionRates = [1, 2, 3].map((n) => ({
+    level: n,
+    reached: reachedCounts[n - 1],
+    rate: db.runs.length ? Math.round((reachedCounts[n - 1] / db.runs.length) * 100) : 0,
+  }));
   res.json({
     metrics: {
       totalPlayers: db.users.length,
@@ -302,6 +316,8 @@ app.get('/api/admin/metrics', requireAdmin, (req, res) => {
       adViews,
       adCompletions,
       adsLast24h,
+      levelCompletionRates,
+      estRevenueUsd: Math.round(adCompletions * EST_REVENUE_PER_COMPLETION_USD * 100) / 100,
       topScores: leaderboard,
       recentRuns: db.runs.slice(-8).reverse().map((r) => ({...r, userName: db.users.find((u) => u.id === r.userId)?.name || 'Unknown'})),
     },

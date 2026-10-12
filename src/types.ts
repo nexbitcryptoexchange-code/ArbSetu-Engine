@@ -71,6 +71,8 @@ export interface AdminMetrics {
   adViews: number;
   adCompletions: number;
   adsLast24h: number;
+  levelCompletionRates: {level: number; reached: number; rate: number}[];
+  estRevenueUsd: number;
   topScores: {id: string; name: string; highScore: number}[];
   recentRuns: Run[];
 }

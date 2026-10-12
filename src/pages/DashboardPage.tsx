@@ -1,10 +1,11 @@
 import {useEffect, useState} from 'react';
 import {useAuth} from '@/context/AuthContext';
 import {api} from '@/lib/api';
+import {LEVEL_NAMES, LEVEL_COUNT} from '@/game/levels';
 import type {LeaderboardEntry, Run} from '@/types';
 
 const Card = ({label, value, accent}: {label: string; value: string | number; accent: string}) => (
-  <div className="pixel-panel rounded-lg bg-arcade-panel p-4">
+  <div className="glass-panel rounded-lg p-4">
     <p className="font-retro text-[8px] text-slate-400">{label}</p>
     <p className={`font-retro mt-2 text-base sm:text-lg ${accent}`}>{value}</p>
   </div>
@@ -23,12 +24,19 @@ export default function DashboardPage() {
   const stats = user!.stats;
 
   return (
-    <div className="min-h-screen bg-arcade-bg">
+    <div className="relative min-h-screen bg-arcade-bg">
+      {/* Ambient glow backdrop */}
+      <div className="pointer-events-none fixed inset-0 overflow-hidden" aria-hidden>
+        <div className="absolute -left-32 -top-32 h-96 w-96 rounded-full bg-arcade-sky/10 blur-3xl" />
+        <div className="absolute -bottom-40 -right-24 h-[28rem] w-[28rem] rounded-full bg-arcade-red/10 blur-3xl" />
+        <div className="absolute left-1/2 top-1/3 h-72 w-72 -translate-x-1/2 rounded-full bg-arcade-gold/5 blur-3xl" />
+      </div>
+
       {/* Header */}
-      <header className="border-b-4 border-arcade-border bg-arcade-panel/70">
+      <header className="glass-panel sticky top-0 z-20 border-0 border-b border-white/10">
         <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6">
           <div className="flex items-center gap-3">
-            <span className="flex h-10 w-10 items-center justify-center rounded bg-arcade-red font-retro text-sm text-white">
+            <span className="flex h-10 w-10 items-center justify-center rounded bg-arcade-red font-retro text-sm text-white shadow-[0_0_16px_rgba(229,37,33,0.5)]">
               {user!.name.slice(0, 1).toUpperCase()}
             </span>
             <div>
@@ -58,15 +66,15 @@ export default function DashboardPage() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-5xl space-y-6 px-4 py-6 sm:px-6">
+      <main className="relative mx-auto max-w-5xl space-y-6 px-4 py-6 sm:px-6">
         {/* Hero / play */}
-        <section className="pixel-panel flex flex-col items-center gap-4 rounded-lg bg-gradient-to-b from-[#5c94fc] to-[#3a6fd8] p-6 text-center sm:p-10">
+        <section className="glass-panel flex flex-col items-center gap-4 overflow-hidden rounded-xl bg-gradient-to-b from-[#5c94fc]/40 to-[#3a6fd8]/25 p-6 text-center sm:p-10">
           <h1 className="font-retro text-lg text-white drop-shadow-[3px_3px_0_rgba(0,0,0,0.5)] sm:text-2xl">
             BITQUEST BROS
           </h1>
           <p className="max-w-md text-sm text-white/90">
             Run, jump and stomp through {stats.levelsUnlocked} unlocked level{stats.levelsUnlocked === 1 ? '' : 's'}. Grab coins,
-            dodge goombas and reach the flag!
+            throw fireballs, dodge goombas and reach the flag!
           </p>
           <a
             href="#/play"
@@ -74,6 +82,36 @@ export default function DashboardPage() {
           >
             ▶ PLAY GAME
           </a>
+        </section>
+
+        {/* Level unlock indicators */}
+        <section className="glass-panel rounded-xl p-4 sm:p-5">
+          <h2 className="font-retro mb-4 text-[11px] text-arcade-cyan">🗺️ WORLD MAP</h2>
+          <div className="grid gap-3 sm:grid-cols-3">
+            {Array.from({length: LEVEL_COUNT}, (_, i) => {
+              const unlocked = stats.levelsUnlocked >= i + 1;
+              return (
+                <div
+                  key={i}
+                  className={`flex items-center gap-3 rounded-lg border-2 px-3 py-3 ${
+                    unlocked ? 'border-arcade-gold/60 bg-arcade-gold/10' : 'border-arcade-border bg-black/30 opacity-60'
+                  }`}
+                >
+                  <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full font-retro text-[10px] ${
+                    unlocked ? 'bg-arcade-gold text-[#3b2a00]' : 'bg-arcade-border text-slate-400'
+                  }`}>
+                    {i + 1}
+                  </span>
+                  <div className="min-w-0">
+                    <p className={`truncate font-retro text-[9px] ${unlocked ? 'text-white' : 'text-slate-500'}`}>
+                      {LEVEL_NAMES[i]}
+                    </p>
+                    <p className="text-xs text-slate-400">{unlocked ? 'UNLOCKED' : '🔒 LOCKED'}</p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </section>
 
         {/* Stats */}
@@ -92,7 +130,7 @@ export default function DashboardPage() {
 
         <div className="grid gap-6 lg:grid-cols-2">
           {/* Leaderboard */}
-          <section className="pixel-panel rounded-lg bg-arcade-panel p-4 sm:p-5">
+          <section className="glass-panel rounded-xl p-4 sm:p-5">
             <h2 className="font-retro mb-4 text-[11px] text-arcade-gold">🏆 GLOBAL LEADERBOARD — TOP 10</h2>
             {leaderboard.length === 0 ? (
               <p className="py-6 text-center text-sm text-slate-500">No scores yet — be the first champion!</p>
@@ -102,7 +140,7 @@ export default function DashboardPage() {
                   <li
                     key={entry.id}
                     className={`flex items-center gap-3 rounded px-3 py-2 text-sm ${
-                      entry.id === user!.id ? 'bg-arcade-gold/15 ring-1 ring-arcade-gold/50' : 'bg-arcade-bg/60'
+                      entry.id === user!.id ? 'bg-arcade-gold/15 ring-1 ring-arcade-gold/50' : 'bg-black/30'
                     }`}
                   >
                     <span className={`font-retro w-7 text-[10px] ${i < 3 ? 'text-arcade-gold' : 'text-slate-500'}`}>
@@ -118,14 +156,14 @@ export default function DashboardPage() {
           </section>
 
           {/* Recent runs */}
-          <section className="pixel-panel rounded-lg bg-arcade-panel p-4 sm:p-5">
+          <section className="glass-panel rounded-xl p-4 sm:p-5">
             <h2 className="font-retro mb-4 text-[11px] text-arcade-cyan">🕹️ YOUR RECENT RUNS</h2>
             {runs.length === 0 ? (
               <p className="py-6 text-center text-sm text-slate-500">Play your first game to see run history here.</p>
             ) : (
               <ul className="space-y-1.5">
                 {runs.map((run) => (
-                  <li key={run.id} className="flex items-center gap-3 rounded bg-arcade-bg/60 px-3 py-2 text-sm">
+                  <li key={run.id} className="flex items-center gap-3 rounded bg-black/30 px-3 py-2 text-sm">
                     <span
                       className={`rounded px-2 py-0.5 text-[10px] font-bold ${
                         run.outcome === 'won' ? 'bg-arcade-green/20 text-green-300' : 'bg-red-500/20 text-red-300'

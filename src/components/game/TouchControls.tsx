@@ -5,11 +5,13 @@ interface Props {
   input: InputState;
   onPressJump: () => void;
   onReleaseJump: () => void;
+  onPressAttack: () => void;
+  onReleaseAttack: () => void;
 }
 
-export default function TouchControls({input, onPressJump, onReleaseJump}: Props) {
+export default function TouchControls({input, onPressJump, onReleaseJump, onPressAttack, onReleaseAttack}: Props) {
 
-  const bind = (key: keyof InputState | 'jump') => ({
+  const bind = (key: keyof InputState | 'jump' | 'attack') => ({
     onPointerDown: (e: ReactPointerEvent) => {
       e.preventDefault();
       try {
@@ -18,19 +20,23 @@ export default function TouchControls({input, onPressJump, onReleaseJump}: Props
         /* pointer may already be released */
       }
       if (key === 'jump') onPressJump();
+      else if (key === 'attack') onPressAttack();
       else input[key] = true;
     },
     onPointerUp: (e: ReactPointerEvent) => {
       e.preventDefault();
       if (key === 'jump') onReleaseJump();
+      else if (key === 'attack') onReleaseAttack();
       else input[key] = false;
     },
     onPointerCancel: () => {
       if (key === 'jump') onReleaseJump();
+      else if (key === 'attack') onReleaseAttack();
       else input[key] = false;
     },
     onLostPointerCapture: () => {
       if (key === 'jump') onReleaseJump();
+      else if (key === 'attack') onReleaseAttack();
       else input[key] = false;
     },
     onContextMenu: (e: ReactMouseEvent) => e.preventDefault(),
@@ -72,14 +78,26 @@ export default function TouchControls({input, onPressJump, onReleaseJump}: Props
         Hold ▲ for a higher jump · double-tap ▲ for a double jump
       </p>
 
-      {/* Action button */}
-      <button
-        aria-label="Jump action"
-        {...bind('jump')}
-        className={`${cls} h-20 w-20 font-retro text-[10px] sm:h-24 sm:w-24`}
-      >
-        JUMP
-      </button>
+      {/* Action buttons: attack (fireball / run) + jump */}
+      <div className="flex items-end gap-2">
+        <button
+          aria-label="Attack"
+          {...bind('attack')}
+          className={`${cls} h-14 w-14 font-retro text-[9px] text-[#7a2000] sm:h-16 sm:w-16 sm:text-[10px]`}
+        >
+          <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden>
+            <circle cx="12" cy="13" r="7" fill="#ff7b1c" />
+            <circle cx="10" cy="11" r="3" fill="#fff3b0" />
+          </svg>
+        </button>
+        <button
+          aria-label="Jump action"
+          {...bind('jump')}
+          className={`${cls} h-20 w-20 font-retro text-[10px] sm:h-24 sm:w-24`}
+        >
+          JUMP
+        </button>
+      </div>
     </div>
   );
 }

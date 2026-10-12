@@ -2,11 +2,14 @@ import {useCallback, useEffect, useRef, useState} from 'react';
 import {useAuth} from '@/context/AuthContext';
 import {api} from '@/lib/api';
 import {MarioGame, VIEW_H, VIEW_W, type HudState, type RunResult} from '@/game/engine';
+import {audio} from '@/game/audio';
 import TouchControls from '@/components/game/TouchControls';
 import RewardedAdOverlay from '@/components/game/RewardedAdOverlay';
 import type {AdSettings, GameConfig} from '@/types';
 
 const CONTINUE_LIVES = 3;
+
+const EMPTY_INPUT = {left: false, right: false, down: false, jumpHeld: false, attackHeld: false};
 
 export default function GamePage() {
   const {user, setUser} = useAuth();
@@ -22,6 +25,7 @@ export default function GamePage() {
   const [adOpen, setAdOpen] = useState(false);
   const [error, setError] = useState('');
   const [levelBanner, setLevelBanner] = useState<string | null>(null);
+  const [muted, setMuted] = useState(audio.muted);
 
   const startGame = useCallback((cfg: GameConfig) => {
     gameRef.current?.destroy();
@@ -77,6 +81,17 @@ export default function GamePage() {
     };
   }, [startGame]);
 
+  // Browsers only allow audio after a user gesture — unlock on first input.
+  useEffect(() => {
+    const unlock = () => audio.ensure();
+    window.addEventListener('pointerdown', unlock);
+    window.addEventListener('keydown', unlock);
+    return () => {
+      window.removeEventListener('pointerdown', unlock);
+      window.removeEventListener('keydown', unlock);
+    };
+  }, []);
+
   // Show a banner when the level changes.
   useEffect(() => {
     setLevelBanner(`LEVEL ${hud.level}`);
@@ -89,7 +104,13 @@ export default function GamePage() {
   };
 
   const exitToDashboard = () => {
+    audio.stopBgm();
     window.location.hash = '#/dashboard';
+  };
+
+  const toggleMute = () => {
+    audio.ensure();
+    setMuted(audio.toggleMuted());
   };
 
   const handleAdComplete = useCallback(() => {
@@ -134,10 +155,18 @@ export default function GamePage() {
         <span className="text-arcade-green">
           LIVES <span className="text-white">{'♥'.repeat(Math.max(0, Math.min(hud.lives, 5)))}</span>
         </span>
+        {hud.power === 'fire' && <span className="text-orange-400">FIRE!</span>}
         <span className={hud.timeLeft <= 60 ? 'text-red-400' : 'text-white'}>
           TIME <span className={hud.timeLeft <= 60 ? 'text-red-400' : 'text-white'}>{hud.timeLeft}</span>
         </span>
         <span className="text-arcade-cyan">{user?.name}</span>
+        <button
+          onClick={toggleMute}
+          aria-label={muted ? 'Unmute sound' : 'Mute sound'}
+          className={`pixel-btn rounded px-3 py-1.5 text-[8px] sm:text-[9px] ${muted ? 'bg-arcade-red text-white' : 'bg-arcade-green text-white'}`}
+        >
+          {muted ? '🔇 SOUND OFF' : '🔊 SOUND ON'}
+        </button>
         <button
           onClick={exitToDashboard}
           className="pixel-btn rounded bg-arcade-red px-3 py-1.5 text-[8px] text-white sm:text-[9px]"
@@ -216,9 +245,11 @@ export default function GamePage() {
             !overPrompt &&
             !adOpen && (
               <TouchControls
-                input={gameRef.current?.input ?? {left: false, right: false, down: false, jumpHeld: false}}
+                input={gameRef.current?.input ?? EMPTY_INPUT}
                 onPressJump={() => gameRef.current?.pressJump()}
                 onReleaseJump={() => gameRef.current?.releaseJump()}
+                onPressAttack={() => gameRef.current?.pressAttack()}
+                onReleaseAttack={() => gameRef.current?.releaseAttack()}
               />
             )
           )}
@@ -226,7 +257,7 @@ export default function GamePage() {
 
         {/* Desktop keyboard hint */}
         <p className="mt-2 hidden text-center text-xs text-slate-400 md:block">
-          Controls: ← → move · ↓ crouch · SPACE / ↑ jump (hold for higher, double-tap for double jump)
+          Controls: ← → move · ↓ crouch · SPACE / ↑ jump (hold = higher, double-tap = double jump) · X / SHIFT throw fireball &amp; run
         </p>
       </div>
     </div>
