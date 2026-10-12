@@ -20,6 +20,15 @@ const DEFAULT_CONFIG = {
   goombaSpeed: 1.4,
 };
 
+const DEFAULT_AD_SETTINGS = {
+  enabled: false,
+  testMode: true,
+  appId: '',
+  rewardedUnitId: '',
+  bannerUnitId: '',
+  interstitialUnitId: '',
+};
+
 // ---------------------------------------------------------------------------
 // Tiny JSON-file storage
 // ---------------------------------------------------------------------------
@@ -36,9 +45,11 @@ function loadDb() {
     }
   }
   if (!db || !Array.isArray(db.users)) {
-    db = {users: [], sessions: [], runs: [], config: {...DEFAULT_CONFIG}};
+    db = {users: [], sessions: [], runs: [], config: {...DEFAULT_CONFIG}, adSettings: {...DEFAULT_AD_SETTINGS}, adEvents: []};
   }
   db.config = {...DEFAULT_CONFIG, ...(db.config || {})};
+  db.adSettings = {...DEFAULT_AD_SETTINGS, ...(db.adSettings || {})};
+  if (!Array.isArray(db.adEvents)) db.adEvents = [];
   db.users.forEach((u) => {
     u.stats = {highScore: 0, totalScore: 0, coins: 0, levelsUnlocked: 1, gamesPlayed: 0, lastPlayedAt: null, ...(u.stats || {})};
   });
@@ -209,6 +220,26 @@ app.get('/api/config', (req, res) => {
   res.json({config: db.config});
 });
 
+// ---------------------------------------------------------------------------
+// Ads (AdMob settings + view/completion tracking)
+// ---------------------------------------------------------------------------
+app.get('/api/ads/config', (req, res) => {
+  res.json({adSettings: db.adSettings});
+});
+
+app.post('/api/ads/track', requireAuth, (req, res) => {
+  const {type, event} = req.body || {};
+  const types = ['rewarded', 'interstitial', 'banner'];
+  const events = ['shown', 'completed', 'abandoned', 'failed'];
+  if (!types.includes(type) || !events.includes(event)) {
+    return res.status(400).json({error: 'Invalid ad event'});
+  }
+  db.adEvents.push({id: crypto.randomUUID(), userId: req.user.id, type, event, at: new Date().toISOString()});
+  if (db.adEvents.length > 2000) db.adEvents = db.adEvents.slice(-2000);
+  persist();
+  res.status(201).json({ok: true});
+});
+
 // Submit a finished run: updates the player's persistent stats.
 app.post('/api/runs', requireAuth, (req, res) => {
   const {score, coins, level, levelsUnlocked, durationSec, outcome} = req.body || {};
@@ -256,6 +287,9 @@ app.get('/api/admin/metrics', requireAdmin, (req, res) => {
     .sort((a, b) => b.highScore - a.highScore)
     .slice(0, 5);
   const last24h = db.runs.filter((r) => Date.now() - new Date(r.playedAt).getTime() < 24 * 3600 * 1000);
+  const adViews = db.adEvents.filter((e) => e.event === 'shown').length;
+  const adCompletions = db.adEvents.filter((e) => e.event === 'completed').length;
+  const adsLast24h = db.adEvents.filter((e) => Date.now() - new Date(e.at).getTime() < 24 * 3600 * 1000).length;
   res.json({
     metrics: {
       totalPlayers: db.users.length,
@@ -265,6 +299,9 @@ app.get('/api/admin/metrics', requireAdmin, (req, res) => {
       runsLast24h: last24h.length,
       globalHighScore: db.users.reduce((m, u) => Math.max(m, u.stats.highScore), 0),
       coinsCollected: db.users.reduce((m, u) => m + u.stats.coins, 0),
+      adViews,
+      adCompletions,
+      adsLast24h,
       topScores: leaderboard,
       recentRuns: db.runs.slice(-8).reverse().map((r) => ({...r, userName: db.users.find((u) => u.id === r.userId)?.name || 'Unknown'})),
     },
@@ -318,6 +355,17 @@ app.patch('/api/admin/config', requireAdmin, (req, res) => {
   }
   persist();
   res.json({config: db.config});
+});
+
+app.patch('/api/admin/ads', requireAdmin, (req, res) => {
+  const body = req.body || {};
+  for (const key of ['appId', 'rewardedUnitId', 'bannerUnitId', 'interstitialUnitId']) {
+    if (typeof body[key] === 'string') db.adSettings[key] = body[key].trim().slice(0, 200);
+  }
+  if (typeof body.enabled === 'boolean') db.adSettings.enabled = body.enabled;
+  if (typeof body.testMode === 'boolean') db.adSettings.testMode = body.testMode;
+  persist();
+  res.json({adSettings: db.adSettings});
 });
 
 // ---------------------------------------------------------------------------

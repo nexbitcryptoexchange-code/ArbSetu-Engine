@@ -1,11 +1,18 @@
 import {useCallback, useEffect, useState} from 'react';
 import {api} from '@/lib/api';
-import type {AdminMetrics, GameConfig, User} from '@/types';
+import type {AdSettings, AdminMetrics, GameConfig, User} from '@/types';
+
+type AdminTab = 'overview' | 'ads';
+
+const EMPTY_AD_FORM: AdSettings = {enabled: false, testMode: true, appId: '', rewardedUnitId: '', bannerUnitId: '', interstitialUnitId: ''};
 
 export default function AdminPage() {
   const [metrics, setMetrics] = useState<AdminMetrics | null>(null);
   const [users, setUsers] = useState<User[]>([]);
   const [config, setConfig] = useState<GameConfig | null>(null);
+  const [adSettings, setAdSettings] = useState<AdSettings>(EMPTY_AD_FORM);
+  const [adForm, setAdForm] = useState<AdSettings>(EMPTY_AD_FORM);
+  const [tab, setTab] = useState<AdminTab>('overview');
   const [toast, setToast] = useState('');
   const [error, setError] = useState('');
 
@@ -16,10 +23,12 @@ export default function AdminPage() {
 
   const reload = useCallback(async () => {
     try {
-      const [m, u, c] = await Promise.all([api.adminMetrics(), api.adminUsers(), api.config()]);
+      const [m, u, c, a] = await Promise.all([api.adminMetrics(), api.adminUsers(), api.config(), api.adsConfig()]);
       setMetrics(m.metrics);
       setUsers(u.users);
       setConfig(c.config);
+      setAdSettings(a.adSettings);
+      setAdForm(a.adSettings);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load admin data');
     }
@@ -67,6 +76,39 @@ export default function AdminPage() {
     setConfig((c) => (c ? {...c, [key]: num} : c));
   };
 
+  const saveAdSettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const res = await api.adminUpdateAds(adForm);
+      setAdSettings(res.adSettings);
+      setAdForm(res.adSettings);
+      flash('Ad settings saved');
+    } catch (err) {
+      flash(err instanceof Error ? err.message : 'Save failed');
+    }
+  };
+
+  const toggleSwitch = (checked: boolean, onChange: () => void, label: string, hint: string) => (
+    <div className="flex items-center justify-between gap-4 rounded bg-arcade-bg/60 px-3 py-2.5">
+      <div>
+        <p className="text-sm font-medium text-slate-200">{label}</p>
+        <p className="text-xs text-slate-500">{hint}</p>
+      </div>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        aria-label={label}
+        onClick={onChange}
+        className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${checked ? 'bg-arcade-green' : 'bg-arcade-border'}`}
+      >
+        <span
+          className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${checked ? 'left-[22px]' : 'left-0.5'}`}
+        />
+      </button>
+    </div>
+  );
+
   if (error) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-arcade-bg px-4 text-center">
@@ -101,6 +143,28 @@ export default function AdminPage() {
       </header>
 
       <main className="mx-auto max-w-6xl space-y-6 px-4 py-6 sm:px-6">
+        {/* Tabs */}
+        <div className="flex gap-2">
+          {(
+            [
+              ['overview', '📊 OVERVIEW'],
+              ['ads', '📺 AD SETTINGS'],
+            ] as [AdminTab, string][]
+          ).map(([id, label]) => (
+            <button
+              key={id}
+              onClick={() => setTab(id)}
+              className={`pixel-btn rounded px-4 py-2 font-retro text-[9px] ${
+                tab === id ? 'bg-arcade-gold text-[#3b2a00]' : 'bg-arcade-panel text-slate-300'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {tab === 'overview' && (
+        <>
         {/* Metrics */}
         <section className="grid grid-cols-2 gap-3 md:grid-cols-4">
           {[
@@ -110,6 +174,8 @@ export default function AdminPage() {
             {label: 'RUNS LAST 24H', value: metrics.runsLast24h, accent: 'text-arcade-cyan'},
             {label: 'GLOBAL HIGH SCORE', value: metrics.globalHighScore, accent: 'text-arcade-gold'},
             {label: 'COINS COLLECTED', value: metrics.coinsCollected, accent: 'text-arcade-gold'},
+            {label: 'AD VIEWS', value: metrics.adViews, accent: 'text-arcade-cyan'},
+            {label: 'AD COMPLETIONS', value: metrics.adCompletions, accent: 'text-arcade-green'},
             {label: 'BLOCKED ACCOUNTS', value: metrics.blockedUsers, accent: 'text-red-400'},
             {label: 'CONFIG: LIVES', value: config.initialLives, accent: 'text-white'},
           ].map((m) => (
@@ -285,6 +351,70 @@ export default function AdminPage() {
             </div>
           )}
         </section>
+        </>
+        )}
+
+        {tab === 'ads' && (
+          <div className="grid gap-6 xl:grid-cols-[1fr_320px]">
+            {/* AdMob configurator */}
+            <section className="pixel-panel rounded-lg bg-arcade-panel p-4 sm:p-5">
+              <h2 className="font-retro mb-4 text-[11px] text-arcade-gold">📺 ADMOB MANAGEMENT</h2>
+              <form onSubmit={saveAdSettings} className="space-y-3">
+                {(
+                  [
+                    ['appId', 'AdMob App ID', 'ca-app-pub-XXXX~YYYY'],
+                    ['rewardedUnitId', 'Rewarded Ad Unit ID', 'ca-app-pub-XXXX/RRRR'],
+                    ['bannerUnitId', 'Banner Ad Unit ID', 'ca-app-pub-XXXX/BBBB'],
+                    ['interstitialUnitId', 'Interstitial Ad Unit ID', 'ca-app-pub-XXXX/IIII'],
+                  ] as [keyof AdSettings, string, string][]
+                ).map(([key, label, placeholder]) => (
+                  <label key={key} className="block">
+                    <span className="mb-1 block text-xs text-slate-400">{label}</span>
+                    <input
+                      type="text"
+                      value={adForm[key] as string}
+                      placeholder={placeholder}
+                      onChange={(e) => setAdForm((f) => ({...f, [key]: e.target.value}))}
+                      className="w-full rounded border-2 border-arcade-border bg-arcade-bg px-3 py-1.5 font-mono text-xs outline-none focus:border-arcade-gold"
+                    />
+                  </label>
+                ))}
+                {toggleSwitch(adForm.enabled, () => setAdForm((f) => ({...f, enabled: !f.enabled})), 'Enable Ads', 'Show the Watch-Ad continue option in-game')}
+                {toggleSwitch(adForm.testMode, () => setAdForm((f) => ({...f, testMode: !f.testMode})), 'Test Mode', 'Use simulated ads for development testing')}
+                <button type="submit" className="pixel-btn w-full rounded bg-arcade-gold py-2.5 font-retro text-[10px] text-[#3b2a00]">
+                  SAVE AD SETTINGS
+                </button>
+              </form>
+            </section>
+
+            {/* Ad analytics */}
+            <section className="pixel-panel rounded-lg bg-arcade-panel p-4 sm:p-5">
+              <h2 className="font-retro mb-4 text-[11px] text-arcade-cyan">📈 AD ANALYTICS</h2>
+              <div className="space-y-3">
+                {[
+                  {label: 'TOTAL AD VIEWS', value: metrics.adViews, accent: 'text-arcade-cyan'},
+                  {label: 'AD COMPLETIONS', value: metrics.adCompletions, accent: 'text-arcade-green'},
+                  {
+                    label: 'COMPLETION RATE',
+                    value: metrics.adViews > 0 ? `${Math.round((metrics.adCompletions / metrics.adViews) * 100)}%` : '—',
+                    accent: 'text-arcade-gold',
+                  },
+                  {label: 'AD EVENTS (24H)', value: metrics.adsLast24h, accent: 'text-white'},
+                ].map((m) => (
+                  <div key={m.label} className="flex items-center justify-between rounded bg-arcade-bg/60 px-3 py-2.5">
+                    <p className="font-retro text-[8px] text-slate-400">{m.label}</p>
+                    <p className={`font-retro text-sm ${m.accent}`}>{m.value}</p>
+                  </div>
+                ))}
+                <p className="text-xs text-slate-500">
+                  Ads are currently{' '}
+                  <span className={adSettings.enabled ? 'text-green-300' : 'text-red-300'}>{adSettings.enabled ? 'ENABLED' : 'DISABLED'}</span>
+                  {adSettings.enabled && adSettings.testMode ? ' (test mode)' : ''}.
+                </p>
+              </div>
+            </section>
+          </div>
+        )}
       </main>
     </div>
   );

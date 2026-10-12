@@ -3,46 +3,71 @@ import {useAuth} from '@/context/AuthContext';
 import {api} from '@/lib/api';
 import {MarioGame, VIEW_H, VIEW_W, type HudState, type RunResult} from '@/game/engine';
 import TouchControls from '@/components/game/TouchControls';
-import type {GameConfig} from '@/types';
+import RewardedAdOverlay from '@/components/game/RewardedAdOverlay';
+import type {AdSettings, GameConfig} from '@/types';
+
+const CONTINUE_LIVES = 3;
 
 export default function GamePage() {
   const {user, setUser} = useAuth();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const gameRef = useRef<MarioGame | null>(null);
+  const configRef = useRef<GameConfig | null>(null);
+  const restartPendingRef = useRef(false);
+  const submitRunRef = useRef<(run: RunResult) => void>(() => {});
   const [hud, setHud] = useState<HudState>({score: 0, coins: 0, lives: 3, level: 1, timeLeft: 300, power: 'small'});
   const [result, setResult] = useState<(RunResult & {saved: boolean}) | null>(null);
-  const [config, setConfig] = useState<GameConfig | null>(null);
+  const [adSettings, setAdSettings] = useState<AdSettings | null>(null);
+  const [overPrompt, setOverPrompt] = useState(false);
+  const [adOpen, setAdOpen] = useState(false);
   const [error, setError] = useState('');
   const [levelBanner, setLevelBanner] = useState<string | null>(null);
 
-  const submitRun = useCallback(
-    async (run: RunResult) => {
-      try {
-        const res = await api.submitRun(run);
-        setUser(res.user);
-        setResult({...run, saved: true});
-      } catch {
-        setResult({...run, saved: false});
-      }
-    },
-    [setUser],
-  );
+  const startGame = useCallback((cfg: GameConfig) => {
+    gameRef.current?.destroy();
+    gameRef.current = null;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    setResult(null);
+    setOverPrompt(false);
+    setAdOpen(false);
+    const game = new MarioGame({
+      canvas,
+      config: cfg,
+      onHud: setHud,
+      onExit: (run) => submitRunRef.current(run),
+      onGameOverPrompt: () => setOverPrompt(true),
+    });
+    gameRef.current = game;
+    game.start();
+  }, []);
+
+  const submitRun = async (run: RunResult) => {
+    const andRestart = restartPendingRef.current;
+    restartPendingRef.current = false;
+    let saved = true;
+    try {
+      const res = await api.submitRun(run);
+      setUser(res.user);
+    } catch {
+      saved = false;
+    }
+    if (andRestart && configRef.current) {
+      startGame(configRef.current);
+    } else {
+      setResult({...run, saved});
+    }
+  };
+  submitRunRef.current = submitRun;
 
   useEffect(() => {
     let cancelled = false;
-    api
-      .config()
-      .then(({config}) => {
+    Promise.all([api.config(), api.adsConfig()])
+      .then(([{config: cfg}, {adSettings: ads}]) => {
         if (cancelled || !canvasRef.current) return;
-        setConfig(config);
-        const game = new MarioGame({
-          canvas: canvasRef.current,
-          config,
-          onHud: setHud,
-          onExit: (run) => submitRun(run),
-        });
-        gameRef.current = game;
-        game.start();
+        configRef.current = cfg;
+        setAdSettings(ads);
+        startGame(cfg);
       })
       .catch(() => setError('Could not load game configuration. Is the server running?'));
     return () => {
@@ -50,7 +75,7 @@ export default function GamePage() {
       gameRef.current?.destroy();
       gameRef.current = null;
     };
-  }, [submitRun]);
+  }, [startGame]);
 
   // Show a banner when the level changes.
   useEffect(() => {
@@ -60,18 +85,26 @@ export default function GamePage() {
   }, [hud.level]);
 
   const restart = () => {
-    setResult(null);
-    gameRef.current?.destroy();
-    gameRef.current = null;
-    const canvas = canvasRef.current;
-    if (!config || !canvas) return;
-    const game = new MarioGame({canvas, config, onHud: setHud, onExit: (run) => submitRun(run)});
-    gameRef.current = game;
-    game.start();
+    if (configRef.current) startGame(configRef.current);
   };
 
   const exitToDashboard = () => {
     window.location.hash = '#/dashboard';
+  };
+
+  const handleAdComplete = useCallback(() => {
+    setAdOpen(false);
+    gameRef.current?.grantContinue(CONTINUE_LIVES);
+    setOverPrompt(false);
+  }, []);
+
+  const handleAdClose = useCallback(() => {
+    setAdOpen(false);
+  }, []);
+
+  const restartFromModal = () => {
+    restartPendingRef.current = true;
+    gameRef.current?.endGame();
   };
 
   if (error) {
@@ -131,6 +164,34 @@ export default function GamePage() {
             </div>
           )}
 
+          {overPrompt && !result && (
+            <div className="absolute inset-0 z-40 flex flex-col items-center justify-center gap-4 bg-black/80 px-4 text-center">
+              <p className="font-retro text-xl text-arcade-red sm:text-3xl">GAME OVER</p>
+              <p className="font-retro text-[10px] text-white sm:text-xs">OUT OF LIVES — CONTINUE?</p>
+              {adSettings?.enabled && (
+                <button
+                  onClick={() => setAdOpen(true)}
+                  className="pixel-btn rounded bg-arcade-green px-5 py-3 font-retro text-[10px] text-white"
+                >
+                  ▶ WATCH VIDEO AD
+                  <span className="mt-1 block text-[8px] text-green-200">GET {CONTINUE_LIVES} EXTRA LIVES &amp; CONTINUE</span>
+                </button>
+              )}
+              <div className="flex gap-3">
+                <button onClick={restartFromModal} className="pixel-btn rounded bg-arcade-gold px-5 py-3 font-retro text-[10px] text-[#3b2a00]">
+                  RESTART GAME
+                </button>
+                <button onClick={exitToDashboard} className="pixel-btn rounded bg-arcade-border px-5 py-3 font-retro text-[10px] text-slate-200">
+                  DASHBOARD
+                </button>
+              </div>
+            </div>
+          )}
+
+          {adOpen && adSettings && (
+            <RewardedAdOverlay settings={adSettings} onComplete={handleAdComplete} onClose={handleAdClose} />
+          )}
+
           {result ? (
             <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-4 bg-black/75 px-4 text-center">
               <p className={`font-retro text-xl sm:text-3xl ${result.outcome === 'won' ? 'text-arcade-gold' : 'text-arcade-red'}`}>
@@ -152,11 +213,14 @@ export default function GamePage() {
               </div>
             </div>
           ) : (
-            <TouchControls
-              input={gameRef.current?.input ?? {left: false, right: false, down: false, jumpHeld: false}}
-              onPressJump={() => gameRef.current?.pressJump()}
-              onReleaseJump={() => gameRef.current?.releaseJump()}
-            />
+            !overPrompt &&
+            !adOpen && (
+              <TouchControls
+                input={gameRef.current?.input ?? {left: false, right: false, down: false, jumpHeld: false}}
+                onPressJump={() => gameRef.current?.pressJump()}
+                onReleaseJump={() => gameRef.current?.releaseJump()}
+              />
+            )
           )}
         </div>
 

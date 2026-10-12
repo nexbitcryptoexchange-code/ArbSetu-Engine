@@ -51,6 +51,15 @@ export interface GameConfig {
   goombaSpeed: number;
 }
 
+export interface AdSettings {
+  enabled: boolean;
+  testMode: boolean;
+  appId: string;
+  rewardedUnitId: string;
+  bannerUnitId: string;
+  interstitialUnitId: string;
+}
+
 export interface AdminMetrics {
   totalPlayers: number;
   activePlayers: number;
@@ -59,6 +68,9 @@ export interface AdminMetrics {
   runsLast24h: number;
   globalHighScore: number;
   coinsCollected: number;
+  adViews: number;
+  adCompletions: number;
+  adsLast24h: number;
   topScores: {id: string; name: string; highScore: number}[];
   recentRuns: Run[];
 }

@@ -56,6 +56,7 @@ export class MarioGame {
   private config: GameConfig;
   private onHud: (hud: HudState) => void;
   private onExit: (result: RunResult) => void;
+  private onGameOverPrompt: () => void;
 
   private raf = 0;
   private lastTime = 0;
@@ -64,6 +65,7 @@ export class MarioGame {
   private simFrame = 0;
   private running = false;
   private destroyed = false;
+  private paused = false;
 
   private level!: LevelData;
   private levelIndex = 0;
@@ -104,6 +106,7 @@ export class MarioGame {
     config: GameConfig;
     onHud: (hud: HudState) => void;
     onExit: (result: RunResult) => void;
+    onGameOverPrompt?: () => void;
     startLevel?: number;
   }) {
     this.canvas = opts.canvas;
@@ -113,6 +116,7 @@ export class MarioGame {
     this.config = opts.config;
     this.onHud = opts.onHud;
     this.onExit = opts.onExit;
+    this.onGameOverPrompt = opts.onGameOverPrompt ?? (() => this.finish('game-over'));
 
     this.lives = opts.config.initialLives;
     this.timeLeft = opts.config.timeLimitSec;
@@ -260,7 +264,7 @@ export class MarioGame {
   }
 
   private update() {
-    if (this.exiting) return;
+    if (this.exiting || this.paused) return;
     this.animTimer++;
     this.simFrame++;
 
@@ -566,7 +570,11 @@ export class MarioGame {
   private loseLife() {
     this.lives -= 1;
     if (this.lives <= 0) {
-      this.finish('game-over');
+      // Out of lives: freeze the simulation and let the host UI offer a
+      // continue (e.g. via a rewarded ad) before the run is finalised.
+      this.paused = true;
+      this.pushHud();
+      this.onGameOverPrompt();
       return;
     }
     this.big = false;
@@ -575,6 +583,27 @@ export class MarioGame {
     this.loadLevel(this.levelIndex);
     this.resetPlayer();
     this.pushHud();
+  }
+
+  // Resume after a "game over / continue?" prompt: refill lives and restart
+  // the current level (progress kept, run not yet submitted).
+  grantContinue(extraLives: number) {
+    if (this.destroyed) return;
+    this.lives = Math.max(1, extraLives);
+    this.big = false;
+    this.starTimer = 0;
+    this.invulnTimer = 0;
+    this.loadLevel(this.levelIndex);
+    this.resetPlayer();
+    this.paused = false;
+    this.pushHud();
+  }
+
+  // Give up on the continue prompt: finalise the run as a normal game over.
+  endGame() {
+    if (this.exiting) return;
+    this.paused = false;
+    this.finish('game-over');
   }
 
   private checkFlag() {

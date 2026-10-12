@@ -1,4 +1,4 @@
-import type {AdminMetrics, AuthPayload, GameConfig, LeaderboardEntry, Run, User} from '@/types';
+import type {AdSettings, AdminMetrics, AuthPayload, GameConfig, LeaderboardEntry, Run, User} from '@/types';
 
 const TOKEN_KEY = 'bitquest.token';
 
@@ -46,6 +46,9 @@ export const api = {
 
   leaderboard: () => request<{leaderboard: LeaderboardEntry[]}>('/api/leaderboard'),
   config: () => request<{config: GameConfig}>('/api/config'),
+  adsConfig: () => request<{adSettings: AdSettings}>('/api/ads/config'),
+  trackAdEvent: (type: 'rewarded' | 'interstitial' | 'banner', event: 'shown' | 'completed' | 'abandoned' | 'failed') =>
+    request<{ok: boolean}>('/api/ads/track', {method: 'POST', body: JSON.stringify({type, event})}),
   submitRun: (run: {score: number; coins: number; level: number; levelsUnlocked: number; durationSec: number; outcome: 'won' | 'game-over'}) =>
     request<{run: Run; user: User}>('/api/runs', {method: 'POST', body: JSON.stringify(run)}),
   myRuns: () => request<{runs: Run[]}>('/api/me/runs'),
@@ -58,4 +61,6 @@ export const api = {
     request<{user: User}>(`/api/admin/users/${id}/reset-scores`, {method: 'POST'}),
   adminUpdateConfig: (patch: Partial<GameConfig>) =>
     request<{config: GameConfig}>('/api/admin/config', {method: 'PATCH', body: JSON.stringify(patch)}),
+  adminUpdateAds: (patch: Partial<AdSettings>) =>
+    request<{adSettings: AdSettings}>('/api/admin/ads', {method: 'PATCH', body: JSON.stringify(patch)}),
 };
